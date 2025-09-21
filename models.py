@@ -203,14 +203,26 @@ class Image:
     
     @staticmethod
     def _get_next_sort_order(db: 'DatabaseManager', campus_id: int) -> int:
-        """指定されたキャンパスの次のsort_order値を取得"""
+        """指定されたキャンパスの次のsort_order値を取得（1-15の範囲内）"""
         query = """
             SELECT COALESCE(MAX(sort_order), 0) + 1 
             FROM image 
             WHERE campus_id = ?
         """
         results = db.execute_query(query, (campus_id,))
-        return results[0][0] if results else 1
+        next_order = results[0][0] if results else 1
+        
+        # 15を超える場合は1から空いている位置を探す
+        if next_order > 15:
+            for i in range(1, 16):  # 1-15の範囲で空いている位置を探す
+                check_query = "SELECT COUNT(*) FROM image WHERE campus_id = ? AND sort_order = ?"
+                count_results = db.execute_query(check_query, (campus_id, i))
+                if count_results[0][0] == 0:  # 空いている位置
+                    return i
+            # すべて埋まっている場合は1を返す（既存の画像を上書き）
+            return 1
+        
+        return next_order
     
     def save(self) -> int:
         """画像を保存（新規作成または更新）"""
@@ -220,6 +232,10 @@ class Image:
             # 新規作成時、sort_orderが指定されていない場合は最大値+1を設定
             if self.sort_order == 0:
                 self.sort_order = self._get_next_sort_order(db, self.campus_id)
+            
+            # sort_orderの範囲チェック
+            if not (1 <= self.sort_order <= 15):
+                raise ValueError(f"sort_order must be between 1 and 15, got {self.sort_order}")
             
             query = """
                 INSERT INTO image (campus_id, name, file_data, sort_order) 
@@ -234,6 +250,10 @@ class Image:
                 return self.id
         else:
             # 更新
+            # sort_orderの範囲チェック
+            if not (1 <= self.sort_order <= 15):
+                raise ValueError(f"sort_order must be between 1 and 15, got {self.sort_order}")
+            
             query = """
                 UPDATE image SET name = ?, file_data = ?, sort_order = ?, 
                                 updated_at = CURRENT_TIMESTAMP 

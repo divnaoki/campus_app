@@ -50,7 +50,7 @@ class ImageUploadThread(QThread):
                 campus_id=self.campus_id,
                 name=image_name,  # ユーザーが入力した画像名を使用
                 file_data=file_data,
-                sort_order=0
+                sort_order=0  # 0を設定すると自動的に適切な値が計算される
             )
             image.save()
             

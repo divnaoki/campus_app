@@ -59,11 +59,12 @@ def create_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 file_data BLOB NOT NULL,
-                sort_order INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL CHECK (sort_order >= 1 AND sort_order <= 15),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 campus_id INTEGER,
-                FOREIGN KEY (campus_id) REFERENCES campus(id)
+                FOREIGN KEY (campus_id) REFERENCES campus(id),
+                UNIQUE(campus_id, sort_order)
             )
         ''')
         print("imageテーブルを作成しました。")

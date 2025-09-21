@@ -1,22 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
 
-# pyttsx3のすべてのサブモジュールを収集
-pyttsx3_hiddenimports = collect_submodules('pyttsx3')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=pyttsx3_hiddenimports + [
-        'pyttsx3.drivers',
-        'pyttsx3.drivers.sapi5',
-        'pyttsx3.drivers.nsss',
-        'pyttsx3.drivers.espeak',
-        'pyttsx3.engine',
-        'pyttsx3.voice'
-    ],
+    hiddenimports=[],
     hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=[],
