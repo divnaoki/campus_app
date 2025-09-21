@@ -18,7 +18,7 @@ from models import Image, Campus
 
 
 class TextToSpeechThread(QThread):
-    """テキスト読み上げ用のスレッド"""
+    """テキスト読み上げ用のスレッド（クロスプラットフォーム対応）"""
     
     speech_completed = Signal()
     speech_error = Signal(str)
@@ -33,23 +33,46 @@ class TextToSpeechThread(QThread):
     def run(self):
         """テキスト読み上げを実行"""
         try:
-            # macOSのsayコマンドを使用
-            import subprocess
+            import pyttsx3
+            import platform
             
-            cmd = ['say']
+            # pyttsx3エンジンを初期化
+            engine = pyttsx3.init()
             
-            if self.voice:
-                cmd.extend(['-v', self.voice])
+            # 音声設定
+            engine.setProperty('rate', self.rate)
+            engine.setProperty('volume', self.volume)
             
-            cmd.extend(['-r', str(self.rate)])
-            cmd.extend(['-v', str(self.volume)])
-            cmd.append(self.text)
+            # 音声の選択（プラットフォーム別）
+            voices = engine.getProperty('voices')
+            if voices and self.voice:
+                # 指定された音声を検索
+                for voice in voices:
+                    if self.voice.lower() in voice.name.lower():
+                        engine.setProperty('voice', voice.id)
+                        break
+            elif voices:
+                # デフォルト音声を設定（プラットフォーム別）
+                system = platform.system()
+                if system == "Windows":
+                    # Windows用の日本語音声を優先
+                    for voice in voices:
+                        if 'japanese' in voice.name.lower() or 'japan' in voice.name.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
+                elif system == "Darwin":  # macOS
+                    # macOS用の日本語音声を優先
+                    for voice in voices:
+                        if 'kyoko' in voice.name.lower() or 'japanese' in voice.name.lower():
+                            engine.setProperty('voice', voice.id)
+                            break
             
-            subprocess.run(cmd, check=True)
+            # テキストを読み上げ
+            engine.say(self.text)
+            engine.runAndWait()
+            
             self.speech_completed.emit()
             
-        except subprocess.CalledProcessError as e:
-            self.speech_error.emit(f"読み上げエラー: {e}")
         except Exception as e:
             self.speech_error.emit(f"読み上げ中にエラーが発生しました: {e}")
 
@@ -238,8 +261,20 @@ class ImageDetailWidget(QWidget):
             text = f"{self.image.name}"
             
             try:
-                # 読み上げスレッドを開始
-                self.speech_thread = TextToSpeechThread(text, rate=200, volume=0.8, voice='Kyoko')
+                # 読み上げスレッドを開始（プラットフォーム別の音声設定）
+                import platform
+                system = platform.system()
+                
+                if system == "Windows":
+                    # Windows用の音声設定
+                    self.speech_thread = TextToSpeechThread(text, rate=200, volume=0.8, voice='Microsoft')
+                elif system == "Darwin":  # macOS
+                    # macOS用の音声設定
+                    self.speech_thread = TextToSpeechThread(text, rate=200, volume=0.8, voice='Kyoko')
+                else:
+                    # その他のプラットフォーム
+                    self.speech_thread = TextToSpeechThread(text, rate=200, volume=0.8)
+                
                 self.speech_thread.speech_completed.connect(self.on_auto_speech_completed)
                 self.speech_thread.speech_error.connect(self.on_auto_speech_error)
                 self.speech_thread.start()
