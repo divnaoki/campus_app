@@ -34,7 +34,17 @@ def create_database():
     app_data_dir = get_user_data_dir("PySide6App")
     db_path = app_data_dir / "database.db"
     
+    # videosフォルダ構造を作成
+    videos_dir = app_data_dir / "videos"
+    video_dir = videos_dir / "video"
+    thumbnail_dir = videos_dir / "thumbnail"
+    
+    video_dir.mkdir(parents=True, exist_ok=True)
+    thumbnail_dir.mkdir(parents=True, exist_ok=True)
+    
     print(f"データベースファイルの配置先: {db_path}")
+    print(f"動画ファイルの配置先: {video_dir}")
+    print(f"サムネイルファイルの配置先: {thumbnail_dir}")
     
     # データベース接続
     conn = sqlite3.connect(db_path)

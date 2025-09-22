@@ -28,6 +28,12 @@ from image.create import ImageCreateWidget
 from image.edit import ImageEditWidget
 from image.detail import ImageDetailWidget
 
+# 動画関連のインポート
+from video.index import VideoIndexWidget
+from video.create import VideoCreateWidget
+from video.edit import VideoEditWidget
+from video.detail import VideoDetailWidget
+
 
 class Sidebar(QFrame):
     """左側のメニューバー"""
@@ -36,6 +42,7 @@ class Sidebar(QFrame):
     campus_index_requested = Signal()
     campus_create_requested = Signal()
     image_index_requested = Signal(int)  # 画像一覧画面への遷移要求（campus_id）
+    video_index_requested = Signal(int)  # 動画一覧画面への遷移要求（campus_id）
     
     def __init__(self):
         super().__init__()
@@ -295,6 +302,118 @@ class Sidebar(QFrame):
         self.menu_layout.addWidget(back_btn)
         self.current_page = "image_detail"
     
+    def set_video_index_menu(self):
+        """動画一覧画面用のメニューを設定"""
+        self.clear_menu()
+        
+        # キャンパス一覧に戻るボタン
+        back_btn = QToolButton()
+        back_btn.setIcon(qta.icon('mdi.arrow-left', color='#FFFFFF'))
+        back_btn.setText("キャンパス一覧に戻る")
+        back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #6B7280;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+            }
+            QToolButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        back_btn.clicked.connect(self.campus_index_requested.emit)
+        
+        self.menu_layout.addWidget(back_btn)
+        self.current_page = "video_index"
+    
+    def set_video_create_menu(self):
+        """動画アップロード画面用のメニューを設定"""
+        self.clear_menu()
+        
+        # 動画一覧に戻るボタン
+        back_btn = QToolButton()
+        back_btn.setIcon(qta.icon('mdi.arrow-left', color='#FFFFFF'))
+        back_btn.setText("動画一覧に戻る")
+        back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #6B7280;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+            }
+            QToolButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        back_btn.clicked.connect(self.video_index_requested.emit)
+        
+        self.menu_layout.addWidget(back_btn)
+        self.current_page = "video_create"
+    
+    def set_video_edit_menu(self):
+        """動画編集画面用のメニューを設定"""
+        self.clear_menu()
+        
+        # 動画一覧に戻るボタン
+        back_btn = QToolButton()
+        back_btn.setIcon(qta.icon('mdi.arrow-left', color='#FFFFFF'))
+        back_btn.setText("動画一覧に戻る")
+        back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #6B7280;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+            }
+            QToolButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        back_btn.clicked.connect(self.video_index_requested.emit)
+        
+        self.menu_layout.addWidget(back_btn)
+        self.current_page = "video_edit"
+    
+    def set_video_detail_menu(self):
+        """動画詳細画面用のメニューを設定"""
+        self.clear_menu()
+        
+        # キャンパス一覧に戻るボタン
+        back_btn = QToolButton()
+        back_btn.setIcon(qta.icon('mdi.school', color='#FFFFFF'))
+        back_btn.setText("キャンパス一覧表示")
+        back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #6B7280;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+            }
+            QToolButton:hover {
+                background-color: #4B5563;
+            }
+        """)
+        back_btn.clicked.connect(self.campus_index_requested.emit)
+        
+        self.menu_layout.addWidget(back_btn)
+        self.current_page = "video_detail"
+    
     def clear_menu(self):
         """メニューをクリア"""
         while self.menu_layout.count():
@@ -403,6 +522,16 @@ class MainWindow(QMainWindow):
         self.image_detail_widget = None
         self.image_detail_index = None
         
+        # 動画関連ページも動的に作成するため、ここでは追加しない
+        self.video_index_widget = None
+        self.video_index_index = None
+        self.video_create_widget = None
+        self.video_create_index = None
+        self.video_edit_widget = None
+        self.video_edit_index = None
+        self.video_detail_widget = None
+        self.video_detail_index = None
+        
         # 初期ページを設定
         self.main_content.set_current_page(self.campus_index_index)
         self.sidebar.set_campus_index_menu()
@@ -413,11 +542,13 @@ class MainWindow(QMainWindow):
         self.sidebar.campus_index_requested.connect(self.show_campus_index)
         self.sidebar.campus_create_requested.connect(self.show_campus_create)
         self.sidebar.image_index_requested.connect(self.show_image_index)
+        self.sidebar.video_index_requested.connect(self.show_video_index)
         
         # キャンパス一覧のシグナル
         self.campus_index_widget.create_campus_requested.connect(self.show_campus_create)
         self.campus_index_widget.edit_campus_requested.connect(self.show_campus_edit)
         self.campus_index_widget.image_index_requested.connect(self.show_image_index)
+        self.campus_index_widget.video_index_requested.connect(self.show_video_index)
         
         # キャンパス作成のシグナル
         self.campus_create_widget.campus_created.connect(self.on_campus_created)
@@ -425,6 +556,11 @@ class MainWindow(QMainWindow):
     
     def show_campus_index(self):
         """キャンパス一覧画面を表示"""
+        # 動画詳細画面が表示されている場合は動画リソースを解放
+        if hasattr(self, 'video_detail_widget') and self.video_detail_widget:
+            if hasattr(self.video_detail_widget, 'player_widget'):
+                self.video_detail_widget.player_widget.closeEvent(None)
+        
         self.main_content.set_current_page(self.campus_index_index)
         self.sidebar.set_campus_index_menu()
         self.campus_index_widget.refresh()
@@ -583,6 +719,124 @@ class MainWindow(QMainWindow):
     def on_image_deleted(self):
         """画像削除完了時の処理"""
         self.show_image_index_from_edit()
+    
+    def show_video_index(self, campus_id):
+        """動画一覧画面を表示"""
+        # 既存の動画一覧ウィジェットがあれば削除
+        if self.video_index_widget:
+            self.main_content.stacked_widget.removeWidget(self.video_index_widget)
+            self.video_index_widget.deleteLater()
+        
+        # 新しい動画一覧ウィジェットを作成
+        self.video_index_widget = VideoIndexWidget(campus_id)
+        self.video_index_index = self.main_content.add_page(self.video_index_widget, "video_index")
+        
+        # シグナルを接続
+        self.video_index_widget.back_to_campus_requested.connect(self.show_campus_index)
+        self.video_index_widget.video_create_requested.connect(self.show_video_create)
+        self.video_index_widget.video_edit_requested.connect(self.show_video_edit)
+        self.video_index_widget.video_detail_requested.connect(self.show_video_detail)
+        
+        # ページを表示
+        self.main_content.set_current_page(self.video_index_index)
+        self.sidebar.set_video_index_menu()
+    
+    def show_video_create(self):
+        """動画アップロード画面を表示"""
+        if not self.video_index_widget:
+            return
+        
+        campus_id = self.video_index_widget.campus_id
+        
+        # 既存の動画アップロードウィジェットがあれば削除
+        if self.video_create_widget:
+            self.main_content.stacked_widget.removeWidget(self.video_create_widget)
+            self.video_create_widget.deleteLater()
+        
+        # 新しい動画アップロードウィジェットを作成
+        self.video_create_widget = VideoCreateWidget(campus_id)
+        self.video_create_index = self.main_content.add_page(self.video_create_widget, "video_create")
+        
+        # シグナルを接続
+        self.video_create_widget.back_to_index_requested.connect(self.show_video_index_from_create)
+        self.video_create_widget.video_created.connect(self.on_video_created)
+        
+        # ページを表示
+        self.main_content.set_current_page(self.video_create_index)
+        self.sidebar.set_video_create_menu()
+    
+    def show_video_edit(self, video_id):
+        """動画編集画面を表示"""
+        # 既存の動画編集ウィジェットがあれば削除
+        if self.video_edit_widget:
+            self.main_content.stacked_widget.removeWidget(self.video_edit_widget)
+            self.video_edit_widget.deleteLater()
+        
+        # 新しい動画編集ウィジェットを作成
+        self.video_edit_widget = VideoEditWidget(video_id)
+        self.video_edit_index = self.main_content.add_page(self.video_edit_widget, "video_edit")
+        
+        # シグナルを接続
+        self.video_edit_widget.back_to_index_requested.connect(self.show_video_index_from_edit)
+        self.video_edit_widget.video_updated.connect(self.on_video_updated)
+        self.video_edit_widget.video_deleted.connect(self.on_video_deleted)
+        
+        # ページを表示
+        self.main_content.set_current_page(self.video_edit_index)
+        self.sidebar.set_video_edit_menu()
+    
+    def show_video_detail(self, video_id):
+        """動画詳細画面を表示"""
+        # 既存の動画詳細ウィジェットがあれば削除
+        if self.video_detail_widget:
+            self.main_content.stacked_widget.removeWidget(self.video_detail_widget)
+            self.video_detail_widget.deleteLater()
+        
+        # 新しい動画詳細ウィジェットを作成
+        self.video_detail_widget = VideoDetailWidget(video_id)
+        self.video_detail_index = self.main_content.add_page(self.video_detail_widget, "video_detail")
+        
+        # シグナルを接続
+        self.video_detail_widget.back_to_index_requested.connect(self.show_video_index_from_detail)
+        self.video_detail_widget.video_index_requested.connect(self.show_video_index)
+        self.video_detail_widget.video_edit_requested.connect(self.show_video_edit)
+        
+        # ページを表示
+        self.main_content.set_current_page(self.video_detail_index)
+        self.sidebar.set_video_detail_menu()
+    
+    def show_video_index_from_create(self):
+        """動画アップロード画面から動画一覧に戻る"""
+        if self.video_index_widget:
+            self.main_content.set_current_page(self.video_index_index)
+            self.sidebar.set_video_index_menu()
+            self.video_index_widget.refresh()
+    
+    def show_video_index_from_edit(self):
+        """動画編集画面から動画一覧に戻る"""
+        if self.video_index_widget:
+            self.main_content.set_current_page(self.video_index_index)
+            self.sidebar.set_video_index_menu()
+            self.video_index_widget.refresh()
+    
+    def show_video_index_from_detail(self):
+        """動画詳細画面から動画一覧に戻る"""
+        if self.video_index_widget:
+            self.main_content.set_current_page(self.video_index_index)
+            self.sidebar.set_video_index_menu()
+            self.video_index_widget.refresh()
+    
+    def on_video_created(self):
+        """動画作成完了時の処理"""
+        self.show_video_index_from_create()
+    
+    def on_video_updated(self):
+        """動画更新完了時の処理"""
+        self.show_video_index_from_edit()
+    
+    def on_video_deleted(self):
+        """動画削除完了時の処理"""
+        self.show_video_index_from_edit()
 
 
 def main():

@@ -274,3 +274,123 @@ class Image:
     
     def __str__(self):
         return f"Image(id={self.id}, campus_id={self.campus_id}, name='{self.name}')"
+
+
+class Video:
+    """動画モデル"""
+    
+    def __init__(self, id: int = None, campus_id: int = None, file_path: str = "", 
+                 thumbnail_path: str = "", sort_order: int = 0,
+                 created_at: str = None, updated_at: str = None):
+        self.id = id
+        self.campus_id = campus_id
+        self.file_path = file_path
+        self.thumbnail_path = thumbnail_path
+        self.sort_order = sort_order
+        self.created_at = created_at
+        self.updated_at = updated_at
+    
+    @staticmethod
+    def get_by_campus_id(campus_id: int) -> List['Video']:
+        """キャンパスIDで動画一覧を取得"""
+        db = DatabaseManager()
+        query = """
+            SELECT id, file_path, thumbnail_path, sort_order, created_at, updated_at, campus_id 
+            FROM video 
+            WHERE campus_id = ? 
+            ORDER BY sort_order ASC, created_at DESC
+        """
+        results = db.execute_query(query, (campus_id,))
+        
+        videos = []
+        for row in results:
+            video = Video(
+                id=row[0],
+                file_path=row[1],
+                thumbnail_path=row[2],
+                sort_order=row[3],
+                created_at=row[4],
+                updated_at=row[5],
+                campus_id=row[6]
+            )
+            videos.append(video)
+        
+        return videos
+    
+    @staticmethod
+    def get_by_id(video_id: int) -> Optional['Video']:
+        """IDで動画を取得"""
+        db = DatabaseManager()
+        query = """
+            SELECT id, file_path, thumbnail_path, sort_order, created_at, updated_at, campus_id 
+            FROM video 
+            WHERE id = ?
+        """
+        results = db.execute_query(query, (video_id,))
+        
+        if results:
+            row = results[0]
+            return Video(
+                id=row[0],
+                file_path=row[1],
+                thumbnail_path=row[2],
+                sort_order=row[3],
+                created_at=row[4],
+                updated_at=row[5],
+                campus_id=row[6]
+            )
+        return None
+    
+    @staticmethod
+    def _get_next_sort_order(db: 'DatabaseManager', campus_id: int) -> int:
+        """指定されたキャンパスの次のsort_order値を取得"""
+        query = """
+            SELECT COALESCE(MAX(sort_order), 0) + 1 
+            FROM video 
+            WHERE campus_id = ?
+        """
+        results = db.execute_query(query, (campus_id,))
+        return results[0][0] if results else 1
+    
+    def save(self) -> int:
+        """動画を保存（新規作成または更新）"""
+        db = DatabaseManager()
+        
+        if self.id is None:
+            # 新規作成時、sort_orderが指定されていない場合は最大値+1を設定
+            if self.sort_order == 0:
+                self.sort_order = self._get_next_sort_order(db, self.campus_id)
+            
+            query = """
+                INSERT INTO video (campus_id, file_path, thumbnail_path, sort_order) 
+                VALUES (?, ?, ?, ?)
+            """
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (self.campus_id, self.file_path, self.thumbnail_path, 
+                                     self.sort_order))
+                conn.commit()
+                self.id = cursor.lastrowid
+                return self.id
+        else:
+            # 更新
+            query = """
+                UPDATE video SET file_path = ?, thumbnail_path = ?, sort_order = ?, 
+                                updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            """
+            db.execute_update(query, (self.file_path, self.thumbnail_path, self.sort_order, self.id))
+            return self.id
+    
+    def delete(self) -> bool:
+        """動画を削除"""
+        if self.id is None:
+            return False
+        
+        db = DatabaseManager()
+        query = "DELETE FROM video WHERE id = ?"
+        affected_rows = db.execute_update(query, (self.id,))
+        return affected_rows > 0
+    
+    def __str__(self):
+        return f"Video(id={self.id}, campus_id={self.campus_id}, file_path='{self.file_path}')"

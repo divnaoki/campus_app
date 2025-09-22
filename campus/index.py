@@ -23,6 +23,7 @@ class CampusIndexWidget(QWidget):
     create_campus_requested = Signal()  # キャンパス作成画面への遷移要求
     edit_campus_requested = Signal(int)  # キャンパス編集画面への遷移要求（campus_id）
     image_index_requested = Signal(int)  # 画像一覧画面への遷移要求（campus_id）
+    video_index_requested = Signal(int)  # 動画一覧画面への遷移要求（campus_id）
     
     def __init__(self):
         super().__init__()
@@ -162,6 +163,8 @@ class CampusIndexWidget(QWidget):
             if campus:
                 if campus.type == "image":
                     self.image_index_requested.emit(campus_id)
+                elif campus.type == "video":
+                    self.video_index_requested.emit(campus_id)
                 else:
                     self.edit_campus_requested.emit(campus_id)
     
