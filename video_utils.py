@@ -4,11 +4,27 @@
 動画管理用ユーティリティ
 """
 
-import cv2
 import os
 import platform
 from pathlib import Path
 from typing import Optional, Tuple
+
+# PySide6のインポート
+try:
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPixmap, QPainter, QPen, QFont
+    PYSIDE6_AVAILABLE = True
+except ImportError:
+    PYSIDE6_AVAILABLE = False
+
+# OpenCVのインポートを安全に行う
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    # OpenCVが利用できない場合は静かに処理
+    CV2_AVAILABLE = False
+    cv2 = None
 
 
 def get_user_data_dir(app_name: str) -> Path:
@@ -40,6 +56,150 @@ def get_video_directories() -> Tuple[Path, Path]:
     return video_dir, thumbnail_dir
 
 
+def generate_thumbnail_with_qt(video_path: str, thumbnail_path: str, 
+                               frame_time: float = 0.0, 
+                               max_size: Tuple[int, int] = (320, 240)) -> bool:
+    """
+    QMediaPlayerを使用して動画からサムネイル画像を生成する
+    
+    Args:
+        video_path: 動画ファイルのパス
+        thumbnail_path: 生成するサムネイル画像のパス
+        frame_time: サムネイルを取得する時間（秒）
+        max_size: サムネイルの最大サイズ (width, height)
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    try:
+        from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
+        from PySide6.QtCore import QUrl, QTimer, QEventLoop, QCoreApplication
+        from PySide6.QtGui import QImage, QPixmap
+        
+        # アプリケーションインスタンスが必要な場合
+        app = QCoreApplication.instance()
+        if app is None:
+            from PySide6.QtWidgets import QApplication
+            app = QApplication([])
+        
+        # QMediaPlayerを作成
+        player = QMediaPlayer()
+        video_sink = QVideoSink()
+        player.setVideoSink(video_sink)
+        
+        # 動画ファイルを設定
+        player.setSource(QUrl.fromLocalFile(video_path))
+        
+        # フレームキャプチャ用の変数
+        captured_frame = None
+        capture_completed = False
+        timeout_occurred = False
+        
+        def on_frame_changed(frame):
+            nonlocal captured_frame, capture_completed
+            if not capture_completed and not frame.isNull():
+                captured_frame = frame
+                capture_completed = True
+        
+        def on_timeout():
+            nonlocal timeout_occurred
+            timeout_occurred = True
+        
+        # フレーム変更シグナルを接続
+        video_sink.videoFrameChanged.connect(on_frame_changed)
+        
+        # タイムアウトタイマーを設定
+        timer = QTimer()
+        timer.timeout.connect(on_timeout)
+        timer.setSingleShot(True)
+        timer.start(3000)  # 3秒でタイムアウト
+        
+        # 動画を再生開始（一時的に）
+        player.play()
+        
+        # 指定された時間に移動
+        player.setPosition(int(frame_time * 1000))  # ミリ秒に変換
+        
+        # イベントループでフレームを待機
+        loop = QEventLoop()
+        
+        # タイムアウトまたはフレームキャプチャ完了まで待機
+        while not capture_completed and not timeout_occurred:
+            loop.processEvents()
+            app.processEvents()
+        
+        # タイマーを停止
+        timer.stop()
+        
+        # プレイヤーを停止
+        player.stop()
+        
+        if captured_frame is None or timeout_occurred:
+            # フレームが取得できない場合はプレースホルダーを作成
+            return create_placeholder_thumbnail(thumbnail_path, max_size)
+        
+        # QVideoFrameをQImageに変換
+        image = captured_frame.toImage()
+        if image.isNull():
+            return create_placeholder_thumbnail(thumbnail_path, max_size)
+        
+        # 画像をリサイズ
+        pixmap = QPixmap.fromImage(image)
+        scaled_pixmap = pixmap.scaled(
+            max_size[0], max_size[1], 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        
+        # 画像を保存
+        return scaled_pixmap.save(thumbnail_path)
+        
+    except Exception as e:
+        print(f"QMediaPlayerサムネイル生成エラー: {e}")
+        # エラーの場合はプレースホルダーを作成
+        return create_placeholder_thumbnail(thumbnail_path, max_size)
+
+
+def create_placeholder_thumbnail(thumbnail_path: str, max_size: Tuple[int, int] = (320, 240)) -> bool:
+    """
+    プレースホルダーサムネイル画像を作成する
+    
+    Args:
+        thumbnail_path: 生成するサムネイル画像のパス
+        max_size: サムネイルの最大サイズ (width, height)
+    
+    Returns:
+        bool: 成功した場合True
+    """
+    if not PYSIDE6_AVAILABLE:
+        print("PySide6 is not available. Cannot create placeholder thumbnail.")
+        return False
+    
+    try:
+        # プレースホルダー画像を作成
+        pixmap = QPixmap(max_size[0], max_size[1])
+        pixmap.fill(Qt.lightGray)
+        
+        painter = QPainter(pixmap)
+        painter.setPen(QPen(Qt.gray, 2))
+        painter.drawRect(10, 10, max_size[0] - 20, max_size[1] - 20)
+        
+        # テキストを描画
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "動画\nサムネイル")
+        painter.end()
+        
+        # 画像を保存
+        return pixmap.save(thumbnail_path)
+        
+    except Exception as e:
+        print(f"プレースホルダーサムネイル作成エラー: {e}")
+        return False
+
+
 def generate_thumbnail(video_path: str, thumbnail_path: str, 
                       frame_time: float = 0.0, 
                       max_size: Tuple[int, int] = (320, 240)) -> bool:
@@ -55,6 +215,10 @@ def generate_thumbnail(video_path: str, thumbnail_path: str,
     Returns:
         bool: 成功した場合True
     """
+    if not CV2_AVAILABLE:
+        # OpenCVが利用できない場合はQMediaPlayerを使用
+        return generate_thumbnail_with_qt(video_path, thumbnail_path, frame_time, max_size)
+    
     try:
         # 動画ファイルを開く
         cap = cv2.VideoCapture(video_path)
@@ -122,6 +286,16 @@ def get_video_info(video_path: str) -> Optional[dict]:
     Returns:
         dict: 動画情報（fps, duration, width, height等）またはNone
     """
+    if not CV2_AVAILABLE:
+        # デフォルトの動画情報を返す
+        return {
+            'fps': 30.0,
+            'duration': 10.0,  # デフォルト10秒
+            'width': 640,
+            'height': 480,
+            'frame_count': 300
+        }
+    
     try:
         cap = cv2.VideoCapture(video_path)
         

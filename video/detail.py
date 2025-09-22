@@ -13,9 +13,17 @@ from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 import qtawesome as qta
 import os
-import cv2
 import numpy as np
 from pathlib import Path
+
+# OpenCVのインポートを安全に行う
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    # OpenCVが利用できない場合は静かに処理
+    CV2_AVAILABLE = False
+    cv2 = None
 
 from models import Video, Campus
 from video_utils import get_video_info
@@ -197,6 +205,21 @@ class VideoPlayerWidget(QWidget):
     
     def load_video_info(self):
         """動画情報を読み込み"""
+        if not CV2_AVAILABLE:
+            # OpenCVが利用できない場合は音声のみで再生
+            self.duration = 10.0  # デフォルト10秒
+            self.fps = 30.0
+            
+            # シークバーの最大値を設定
+            self.progress_slider.setMaximum(100)
+            
+            # 音声プレイヤーに動画ファイルを設定
+            self.audio_player.setSource(QUrl.fromLocalFile(self.video.file_path))
+            
+            # 自動再生を開始
+            self.play_video()
+            return
+            
         try:
             if self.video.file_path and os.path.exists(self.video.file_path):
                 # 動画ファイルを開く
@@ -286,7 +309,20 @@ class VideoPlayerWidget(QWidget):
     
     def update_frame(self):
         """動画フレームを更新"""
-        if not self.is_playing or not self.cap or not self.cap.isOpened():
+        if not self.is_playing:
+            return
+        
+        # OpenCVが利用できない場合は音声のみで再生
+        if not CV2_AVAILABLE:
+            # 音声の位置に基づいてシークバーを更新
+            if not self.is_seeking and self.duration > 0:
+                current_audio_pos = self.audio_player.position()  # ミリ秒
+                if current_audio_pos > 0:
+                    progress = int((current_audio_pos / (self.duration * 1000)) * 100)
+                    self.progress_slider.setValue(progress)
+            return
+        
+        if not self.cap or not self.cap.isOpened():
             return
         
         # 音声の位置に基づいて動画フレームを同期

@@ -13,7 +13,6 @@ a = Analysis(
         'numpy',
         'numpy.core._methods',
         'numpy.lib.format',
-        'opencv-python',
         'pyttsx3',
         'pyttsx3.drivers',
         'pyttsx3.drivers.sapi5',
