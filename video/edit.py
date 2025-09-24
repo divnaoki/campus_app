@@ -132,7 +132,7 @@ class VideoEditWidget(QWidget):
         
         current_info_group.setLayout(current_info_layout)
         
-        # 編集フォーム
+        # 編集フォーム（動画ファイルのみ編集可能）
         edit_form_group = QGroupBox("編集項目")
         edit_form_group.setStyleSheet("""
             QGroupBox {
@@ -191,24 +191,7 @@ class VideoEditWidget(QWidget):
         file_layout.addWidget(self.new_file_edit)
         file_layout.addWidget(select_file_button)
         
-        # 並び順
-        self.sort_order_spinbox = QSpinBox()
-        self.sort_order_spinbox.setMinimum(0)
-        self.sort_order_spinbox.setMaximum(999)
-        self.sort_order_spinbox.setStyleSheet("""
-            QSpinBox {
-                padding: 10px;
-                border: 2px solid #E5E7EB;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QSpinBox:focus {
-                border-color: #3B82F6;
-            }
-        """)
-        
         edit_form_layout.addRow("新しい動画ファイル:", file_layout)
-        edit_form_layout.addRow("並び順:", self.sort_order_spinbox)
         
         edit_form_group.setLayout(edit_form_layout)
         
@@ -283,8 +266,7 @@ class VideoEditWidget(QWidget):
         self.current_thumbnail_label.setText(self.video.thumbnail_path or "-")
         self.current_sort_order_label.setText(str(self.video.sort_order))
         
-        # 並び順の初期値を設定
-        self.sort_order_spinbox.setValue(self.video.sort_order)
+        # 並び順は表示のみ（編集不可）
     
     def select_new_video_file(self):
         """新しい動画ファイルを選択"""
@@ -338,9 +320,6 @@ class VideoEditWidget(QWidget):
                 # パスを更新
                 self.video.file_path = copied_path
                 self.video.thumbnail_path = str(thumbnail_path)
-            
-            # 並び順を更新
-            self.video.sort_order = self.sort_order_spinbox.value()
             
             # データベースに保存
             self.video.save()

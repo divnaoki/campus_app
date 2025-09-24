@@ -178,7 +178,7 @@ class ImageEditWidget(QWidget):
         
         preview_frame.setLayout(preview_layout)
         
-        # 右側：編集フォームエリア
+        # 右側：編集フォームエリア（画像名のみ）
         form_frame = QFrame()
         form_frame.setStyleSheet("""
             QFrame {
@@ -203,9 +203,9 @@ class ImageEditWidget(QWidget):
             }
         """)
         
-        # ファイル名
+        # ファイル名（画像名）のみ
         filename_layout = QHBoxLayout()
-        filename_label = QLabel("ファイル名:")
+        filename_label = QLabel("画像名:")
         filename_label.setFixedWidth(100)
         filename_label.setStyleSheet("color: #374151; font-weight: bold;")
         
@@ -224,32 +224,6 @@ class ImageEditWidget(QWidget):
         
         filename_layout.addWidget(filename_label)
         filename_layout.addWidget(self.filename_input)
-        
-        # 並び順
-        sort_layout = QHBoxLayout()
-        sort_label = QLabel("並び順:")
-        sort_label.setFixedWidth(100)
-        sort_label.setStyleSheet("color: #374151; font-weight: bold;")
-        
-        self.sort_input = QSpinBox()
-        self.sort_input.setRange(0, 9999)
-        self.sort_input.setStyleSheet("""
-            QSpinBox {
-                border: 1px solid #D1D5DB;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QSpinBox:focus {
-                border-color: #3B82F6;
-            }
-        """)
-        
-        sort_layout.addWidget(sort_label)
-        sort_layout.addWidget(self.sort_input)
-        sort_layout.addStretch()
-        
-        # 説明（削除 - 設計書にない）
         
         # ボタンエリア
         button_layout = QHBoxLayout()
@@ -280,7 +254,6 @@ class ImageEditWidget(QWidget):
         # フォームレイアウトに追加
         form_layout.addWidget(form_title)
         form_layout.addLayout(filename_layout)
-        form_layout.addLayout(sort_layout)
         form_layout.addStretch()
         form_layout.addLayout(button_layout)
         
@@ -310,9 +283,8 @@ class ImageEditWidget(QWidget):
             if self.campus:
                 self.title_label.setText(f"画像編集 - {self.campus.name}")
             
-            # フォームに値を設定
+            # フォームに値を設定（画像名のみ）
             self.filename_input.setText(self.image.name)
-            self.sort_input.setValue(self.image.sort_order)
             
             # 画像プレビューを読み込み
             self.load_image_preview()
@@ -365,7 +337,6 @@ class ImageEditWidget(QWidget):
         """ファイル情報を更新"""
         if self.image:
             info_text = f"ファイル: {self.image.name}\n"
-            info_text += f"並び順: {self.image.sort_order}\n"
             info_text += f"データサイズ: {len(self.image.file_data)} bytes"
             self.file_info_label.setText(info_text)
     
@@ -428,7 +399,6 @@ class ImageEditWidget(QWidget):
         try:
             # フォームの値を取得
             new_filename = self.filename_input.text().strip()
-            new_sort_order = self.sort_input.value()
             
             if not new_filename:
                 QMessageBox.warning(self, "警告", "ファイル名を入力してください。")
@@ -436,7 +406,6 @@ class ImageEditWidget(QWidget):
             
             # 画像情報を更新
             self.image.name = new_filename
-            self.image.sort_order = new_sort_order
             
             # データベースに保存
             self.image.save()

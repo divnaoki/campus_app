@@ -26,6 +26,8 @@ class VideoCard(QFrame):
     video_clicked = Signal(int)
     video_dragged = Signal(int, int, int)  # video_id, from_row, from_col
     video_dropped = Signal(int, int, int)  # video_id, to_row, to_col
+    edit_clicked = Signal(int)
+    delete_clicked = Signal(int)
     
     def __init__(self, video: Video, row: int = 0, col: int = 0):
         super().__init__()
@@ -34,6 +36,8 @@ class VideoCard(QFrame):
         self.col = col
         self.drag_start_position = QPoint()
         self.position_edit_mode_ref = None  # 位置修正モードの参照
+        self.manage_mode_ref = None  # 編集/削除ボタン表示モードの参照
+        self.buttons_container = None
         self.setup_ui()
     
     def setup_ui(self):
@@ -85,9 +89,51 @@ class VideoCard(QFrame):
         filename_label.setMaximumHeight(40)
         filename_label.setAlignment(Qt.AlignCenter)
         
+        # ボタン行（編集・削除）
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(8)
+        buttons_layout.setAlignment(Qt.AlignCenter)
+        edit_btn = QPushButton("編集")
+        edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6366F1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #4F46E5;
+            }
+        """)
+        edit_btn.clicked.connect(lambda: self.edit_clicked.emit(self.video.id))
+        delete_btn = QPushButton("削除")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #EF4444;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #DC2626;
+            }
+        """)
+        delete_btn.clicked.connect(lambda: self.delete_clicked.emit(self.video.id))
+        buttons_layout.addWidget(edit_btn)
+        buttons_layout.addWidget(delete_btn)
+
+        self.buttons_container = QWidget()
+        self.buttons_container.setLayout(buttons_layout)
+        self.buttons_container.hide()
+
         # レイアウトに追加
         layout.addWidget(self.thumbnail_label)
         layout.addWidget(filename_label)
+        layout.addWidget(self.buttons_container)
         
         self.setLayout(layout)
     
@@ -180,6 +226,18 @@ class VideoCard(QFrame):
         if event.button() == Qt.LeftButton:
             self.video_clicked.emit(self.video.id)
 
+    def update_manage_buttons_visibility(self):
+        """編集/削除ボタンの表示状態を更新"""
+        if not self.buttons_container:
+            return
+        show = False
+        if self.manage_mode_ref:
+            try:
+                show = bool(self.manage_mode_ref())
+            except Exception:
+                show = False
+        self.buttons_container.setVisible(show)
+
 
 class VideoIndexWidget(QWidget):
     """動画一覧ウィジェット"""
@@ -197,6 +255,7 @@ class VideoIndexWidget(QWidget):
         self.campus_id = campus_id
         self.campus = Campus.get_by_id(campus_id)
         self.video_cards = []
+        self.manage_mode = False
         self.setup_ui()
         self.load_videos()
     
@@ -220,11 +279,30 @@ class VideoIndexWidget(QWidget):
             }
         """)
         
+        # 編集モードボタン
+        self.manage_button = QPushButton()
+        self.manage_button.setIcon(qta.icon('mdi.pencil', color='white'))
+        self.manage_button.setText("編集")
+        self.manage_button.setStyleSheet("""
+            QPushButton {
+                background-color: #F59E0B;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #D97706;
+            }
+        """)
+        self.manage_button.clicked.connect(self.toggle_manage_mode)
+
         # 動画追加ボタン
-        add_button = QPushButton()
-        add_button.setIcon(qta.icon('fa5s.plus', color='white'))
-        add_button.setText("動画を追加")
-        add_button.setStyleSheet("""
+        self.add_button = QPushButton()
+        self.add_button.setIcon(qta.icon('fa5s.plus', color='white'))
+        self.add_button.setText("動画を追加")
+        self.add_button.setStyleSheet("""
             QPushButton {
                 background-color: #3B82F6;
                 color: white;
@@ -240,11 +318,12 @@ class VideoIndexWidget(QWidget):
                 background-color: #1D4ED8;
             }
         """)
-        add_button.clicked.connect(self.video_create_requested.emit)
+        self.add_button.clicked.connect(self.video_create_requested.emit)
         
         header_layout.addWidget(title_label)
         header_layout.addStretch()
-        header_layout.addWidget(add_button)
+        header_layout.addWidget(self.manage_button)
+        header_layout.addWidget(self.add_button)
         
         # スクロールエリア
         self.scroll_area = QScrollArea()
@@ -306,9 +385,14 @@ class VideoIndexWidget(QWidget):
             card.video_clicked.connect(self.on_video_clicked)
             card.video_dragged.connect(self.on_video_dragged)
             card.video_dropped.connect(self.on_video_dropped)
+            # 編集/削除ボタンの参照とイベント接続
+            card.manage_mode_ref = lambda: self.manage_mode
+            card.edit_clicked.connect(self.video_edit_requested.emit)
+            card.delete_clicked.connect(lambda vid=video.id: self.confirm_and_delete_video(vid))
             
             self.content_layout.addWidget(card, row, col)
             self.video_cards.append(card)
+            card.update_manage_buttons_visibility()
     
     def show_empty_state(self):
         """空の状態を表示"""
@@ -360,3 +444,62 @@ class VideoIndexWidget(QWidget):
     def refresh(self):
         """一覧を更新"""
         self.load_videos()
+
+    def toggle_manage_mode(self):
+        """編集/削除モードの切り替え"""
+        self.manage_mode = not self.manage_mode
+        if self.manage_mode:
+            self.manage_button.setText("編集終了")
+            self.manage_button.setIcon(qta.icon('mdi.close', color='white'))
+            self.manage_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #EF4444;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 10px 20px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #DC2626;
+                }
+            """)
+        else:
+            self.manage_button.setText("編集")
+            self.manage_button.setIcon(qta.icon('mdi.pencil', color='white'))
+            self.manage_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #F59E0B;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 10px 20px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #D97706;
+                }
+            """)
+
+        # すべてのカードの表示状態を更新
+        for card in self.video_cards:
+            card.update_manage_buttons_visibility()
+
+    def confirm_and_delete_video(self, video_id: int):
+        """削除確認ダイアログを表示し、はいで削除、一覧更新"""
+        try:
+            video = Video.get_by_id(video_id)
+            filename = os.path.basename(video.file_path) if (video and video.file_path) else "この動画"
+            reply = QMessageBox.question(
+                self,
+                "削除確認",
+                f"{filename} を削除します。よろしいですか？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                if video:
+                    video.delete()
+                self.load_videos()
+        except Exception as e:
+            QMessageBox.critical(self, "エラー", f"削除に失敗しました:\n{str(e)}")

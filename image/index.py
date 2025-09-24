@@ -24,6 +24,8 @@ class ImageCard(QFrame):
     image_clicked = Signal(int)
     image_dragged = Signal(int, int, int)  # image_id, from_row, from_col
     image_dropped = Signal(int, int, int)  # image_id, to_row, to_col
+    edit_clicked = Signal(int)
+    delete_clicked = Signal(int)
     
     def __init__(self, image: Image, row: int = 0, col: int = 0):
         super().__init__()
@@ -32,6 +34,8 @@ class ImageCard(QFrame):
         self.col = col
         self.drag_start_position = QPoint()
         self.position_edit_mode_ref = None  # 位置修正モードの参照
+        self.manage_mode_ref = None  # 編集削除ボタン表示モードの参照
+        self.buttons_container = None
         self.setup_ui()
     
     def setup_ui(self):
@@ -83,9 +87,52 @@ class ImageCard(QFrame):
         filename_label.setMaximumHeight(40)
         filename_label.setAlignment(Qt.AlignCenter)
         
+        # ボタン行（編集・削除）
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(8)
+        buttons_layout.setAlignment(Qt.AlignCenter)
+        edit_btn = QPushButton("編集")
+        edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6366F1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #4F46E5;
+            }
+        """)
+        edit_btn.clicked.connect(lambda: self.edit_clicked.emit(self.image.id))
+        delete_btn = QPushButton("削除")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #EF4444;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #DC2626;
+            }
+        """)
+        delete_btn.clicked.connect(lambda: self.delete_clicked.emit(self.image.id))
+        buttons_layout.addWidget(edit_btn)
+        buttons_layout.addWidget(delete_btn)
+
+        # コンテナに格納して表示制御しやすくする
+        self.buttons_container = QWidget()
+        self.buttons_container.setLayout(buttons_layout)
+        self.buttons_container.hide()
+
         # レイアウトに追加
         layout.addWidget(self.image_label)
         layout.addWidget(filename_label)
+        layout.addWidget(self.buttons_container)
         
         self.setLayout(layout)
     
@@ -214,6 +261,18 @@ class ImageCard(QFrame):
         self.row = row
         self.col = col
 
+    def update_manage_buttons_visibility(self):
+        """編集/削除ボタンの表示状態を更新"""
+        if not self.buttons_container:
+            return
+        show = False
+        if self.manage_mode_ref:
+            try:
+                show = bool(self.manage_mode_ref())
+            except Exception:
+                show = False
+        self.buttons_container.setVisible(show)
+
 
 class DropZone(QFrame):
     """配置可能エリアを表示するウィジェット"""
@@ -329,6 +388,7 @@ class ImageIndexWidget(QWidget):
         self.campus_id = campus_id
         self.images = []
         self.position_edit_mode = False
+        self.manage_mode = False  # 編集/削除ボタン表示モード
         self.image_cards = {}  # (row, col) -> ImageCard
         self.empty_cells = {}  # (row, col) -> EmptyCell
         self.drop_zones = {}   # (row, col) -> DropZone
@@ -390,9 +450,27 @@ class ImageIndexWidget(QWidget):
         """)
         self.position_edit_button.clicked.connect(self.toggle_position_edit_mode)
         
+        # 編集モードボタン
+        self.manage_button = QPushButton("編集")
+        self.manage_button.setStyleSheet("""
+            QPushButton {
+                background-color: #F59E0B;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #D97706;
+            }
+        """)
+        self.manage_button.clicked.connect(self.toggle_manage_mode)
+
         # アップロードボタン
-        upload_button = QPushButton("画像アップロード")
-        upload_button.setStyleSheet("""
+        self.upload_button = QPushButton("画像アップロード")
+        self.upload_button.setStyleSheet("""
             QPushButton {
                 background-color: #3B82F6;
                 color: white;
@@ -406,13 +484,14 @@ class ImageIndexWidget(QWidget):
                 background-color: #2563EB;
             }
         """)
-        upload_button.clicked.connect(self.image_create_requested.emit)
+        self.upload_button.clicked.connect(self.image_create_requested.emit)
         
         header_layout.addWidget(back_button)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         header_layout.addWidget(self.position_edit_button)
-        header_layout.addWidget(upload_button)
+        header_layout.addWidget(self.manage_button)
+        header_layout.addWidget(self.upload_button)
         
         # スクロールエリア
         scroll_area = QScrollArea()
@@ -757,6 +836,9 @@ class ImageIndexWidget(QWidget):
                     background-color: #DC2626;
                 }
             """)
+            # 他ボタンを非表示
+            self.manage_button.hide()
+            self.upload_button.hide()
             self.show_drop_zones()
         else:
             self.position_edit_button.setText("位置修正")
@@ -775,6 +857,10 @@ class ImageIndexWidget(QWidget):
                 }
             """)
             self.hide_drop_zones()
+            # 他ボタンを再表示（編集モードでなければ）
+            if not self.manage_mode:
+                self.manage_button.show()
+                self.upload_button.show()
     
     def show_drop_zones(self):
         """配置可能エリアを表示（既存の画像があるセルは除外、レスポンシブ対応）"""
@@ -865,8 +951,13 @@ class ImageIndexWidget(QWidget):
                 card.image_clicked.connect(self.image_detail_requested.emit)
                 # 位置修正モードの参照を設定
                 card.position_edit_mode_ref = lambda: self.position_edit_mode
+                # 編集モードの参照とシグナル接続
+                card.manage_mode_ref = lambda: self.manage_mode
+                card.edit_clicked.connect(self.image_edit_requested.emit)
+                card.delete_clicked.connect(lambda image_id=image.id: self.confirm_and_delete_image(image_id))
                 self.grid_layout.addWidget(card, row, col)
                 self.image_cards[(row, col)] = card
+                card.update_manage_buttons_visibility()
             else:
                 # 空きセルを配置
                 empty_cell = EmptyCell(row, col, sort_order)
@@ -910,3 +1001,74 @@ class ImageIndexWidget(QWidget):
     def refresh(self):
         """画像一覧を再読み込み"""
         self.load_images()
+
+    def toggle_manage_mode(self):
+        """編集/削除モードの切り替え"""
+        self.manage_mode = not self.manage_mode
+        if self.manage_mode:
+            self.manage_button.setText("編集終了")
+            self.manage_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #EF4444;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 20px;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #DC2626;
+                }
+            """)
+            # 他ボタンを非表示
+            self.position_edit_button.hide()
+            self.upload_button.hide()
+        else:
+            self.manage_button.setText("編集")
+            self.manage_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #F59E0B;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 20px;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #D97706;
+                }
+            """)
+
+            # 他ボタンを再表示（位置修正モードでなければ）
+            if not self.position_edit_mode:
+                self.position_edit_button.show()
+                self.upload_button.show()
+
+        # すべてのカードの表示状態を更新
+        for card in self.image_cards.values():
+            card.update_manage_buttons_visibility()
+
+    def confirm_and_delete_image(self, image_id: int):
+        """削除確認ダイアログを表示し、はいの場合に削除して一覧更新"""
+        try:
+            image = Image.get_by_id(image_id)
+            name = image.name if image else "この画像"
+            reply = QMessageBox.question(
+                self,
+                "削除確認",
+                f"{name} を削除します。よろしいですか？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                if image:
+                    image.delete()
+                # 一覧更新（編集モードは維持）
+                self.load_images()
+            else:
+                # いいえの場合は何もしない（一覧画面のまま）
+                pass
+        except Exception as e:
+            QMessageBox.critical(self, "エラー", f"削除に失敗しました:\n{str(e)}")
