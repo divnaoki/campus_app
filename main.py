@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QMenuBar, QMenu
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QAction
+from PySide6.QtGui import QFont, QAction, QIcon
 import qtawesome as qta
 
 # データベース作成スクリプトをインポート
@@ -679,6 +679,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PySide6 画像・動画管理アプリ")
         self.setMinimumSize(800, 600)
         self.resize(1200, 800)
+        
+        # ウィンドウアイコンの設定
+        self.setWindowIcon(QIcon('icon.png'))
         
         # メニューバーの設定
         self.setup_menu_bar()
