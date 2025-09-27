@@ -337,8 +337,8 @@ class ImageDetailWidget(QWidget):
     def on_auto_speech_completed(self):
         """自動読み上げ完了時の処理"""
         self.is_speaking = False
-        # 読み上げ完了後に自動的に前のページに戻る
-        QTimer.singleShot(500, self.back_to_index_requested.emit)
+        # 読み上げ完了後に3秒待ってから前のページに戻る
+        QTimer.singleShot(3000, self.back_to_index_requested.emit)
     
     def on_auto_speech_error(self, error_message):
         """自動読み上げエラー時の処理"""
