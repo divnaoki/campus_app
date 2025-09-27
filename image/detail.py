@@ -166,7 +166,7 @@ class ImageDetailWidget(QWidget):
             }
         """)
         self.image_display.setAlignment(Qt.AlignCenter)
-        self.image_display.setScaledContents(True)
+        self.image_display.setScaledContents(False)  # 手動でスケーリングするため無効化
         
         # 画像名表示
         self.image_name_label = QLabel()
@@ -226,13 +226,8 @@ class ImageDetailWidget(QWidget):
             if self.image.file_data and len(self.image.file_data) > 0:
                 pixmap = QPixmap()
                 if pixmap.loadFromData(self.image.file_data):
-                    # アスペクト比を保ってリサイズ
-                    scaled_pixmap = pixmap.scaled(
-                        self.image_display.size(), 
-                        Qt.KeepAspectRatio, 
-                        Qt.SmoothTransformation
-                    )
-                    self.image_display.setPixmap(scaled_pixmap)
+                    # アスペクト比を保ってリサイズ（より高品質なスケーリング）
+                    self.set_scaled_pixmap(pixmap)
                 else:
                     self.set_placeholder_image()
             else:
@@ -240,6 +235,58 @@ class ImageDetailWidget(QWidget):
         except Exception as e:
             print(f"画像表示読み込みエラー: {e}")
             self.set_placeholder_image()
+    
+    def set_scaled_pixmap(self, pixmap):
+        """アスペクト比を保って画像をスケールして表示"""
+        if pixmap.isNull():
+            return
+        
+        # 表示エリアのサイズを取得
+        display_size = self.image_display.size()
+        display_width = display_size.width()
+        display_height = display_size.height()
+        
+        # 元画像のサイズを取得
+        original_width = pixmap.width()
+        original_height = pixmap.height()
+        
+        # アスペクト比を計算
+        original_aspect = original_width / original_height
+        display_aspect = display_width / display_height
+        
+        # アスペクト比に基づいて適切なサイズを計算
+        if original_aspect > display_aspect:
+            # 元画像が横長の場合、幅に合わせる
+            scaled_width = display_width
+            scaled_height = int(display_width / original_aspect)
+        else:
+            # 元画像が縦長の場合、高さに合わせる
+            scaled_height = display_height
+            scaled_width = int(display_height * original_aspect)
+        
+        # 高品質なスケーリングを実行
+        scaled_pixmap = pixmap.scaled(
+            scaled_width, 
+            scaled_height, 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        
+        # 中央に配置するためのQPixmapを作成
+        final_pixmap = QPixmap(display_width, display_height)
+        final_pixmap.fill(Qt.transparent)
+        
+        # 中央に配置
+        painter = QPainter(final_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        
+        x_offset = (display_width - scaled_width) // 2
+        y_offset = (display_height - scaled_height) // 2
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        painter.end()
+        
+        self.image_display.setPixmap(final_pixmap)
     
     def set_placeholder_image(self):
         """プレースホルダー画像を設定"""

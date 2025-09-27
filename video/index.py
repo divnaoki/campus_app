@@ -279,51 +279,9 @@ class VideoIndexWidget(QWidget):
             }
         """)
         
-        # 編集モードボタン
-        self.manage_button = QPushButton()
-        self.manage_button.setIcon(qta.icon('mdi.pencil', color='white'))
-        self.manage_button.setText("編集")
-        self.manage_button.setStyleSheet("""
-            QPushButton {
-                background-color: #F59E0B;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #D97706;
-            }
-        """)
-        self.manage_button.clicked.connect(self.toggle_manage_mode)
-
-        # 動画追加ボタン
-        self.add_button = QPushButton()
-        self.add_button.setIcon(qta.icon('fa5s.plus', color='white'))
-        self.add_button.setText("動画を追加")
-        self.add_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2563EB;
-            }
-            QPushButton:pressed {
-                background-color: #1D4ED8;
-            }
-        """)
-        self.add_button.clicked.connect(self.video_create_requested.emit)
         
         header_layout.addWidget(title_label)
         header_layout.addStretch()
-        header_layout.addWidget(self.manage_button)
-        header_layout.addWidget(self.add_button)
         
         # スクロールエリア
         self.scroll_area = QScrollArea()
@@ -448,38 +406,6 @@ class VideoIndexWidget(QWidget):
     def toggle_manage_mode(self):
         """編集/削除モードの切り替え"""
         self.manage_mode = not self.manage_mode
-        if self.manage_mode:
-            self.manage_button.setText("編集終了")
-            self.manage_button.setIcon(qta.icon('mdi.close', color='white'))
-            self.manage_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #EF4444;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    padding: 10px 20px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #DC2626;
-                }
-            """)
-        else:
-            self.manage_button.setText("編集")
-            self.manage_button.setIcon(qta.icon('mdi.pencil', color='white'))
-            self.manage_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #F59E0B;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    padding: 10px 20px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #D97706;
-                }
-            """)
 
         # すべてのカードの表示状態を更新
         for card in self.video_cards:

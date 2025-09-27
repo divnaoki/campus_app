@@ -69,7 +69,7 @@ class ImageCard(QFrame):
             }
         """)
         self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setScaledContents(True)
+        self.image_label.setScaledContents(False)  # 手動でスケーリングするため無効化
         
         # 画像を読み込み
         self.load_image_preview()
@@ -142,13 +142,8 @@ class ImageCard(QFrame):
             if self.image.file_data and len(self.image.file_data) > 0:
                 pixmap = QPixmap()
                 if pixmap.loadFromData(self.image.file_data):
-                    # アスペクト比を保ってリサイズ
-                    scaled_pixmap = pixmap.scaled(
-                        self.image_label.size(), 
-                        Qt.KeepAspectRatio, 
-                        Qt.SmoothTransformation
-                    )
-                    self.image_label.setPixmap(scaled_pixmap)
+                    # アスペクト比を保ってリサイズ（より高品質なスケーリング）
+                    self.set_scaled_preview_pixmap(pixmap)
                 else:
                     self.set_placeholder_image()
             else:
@@ -156,6 +151,58 @@ class ImageCard(QFrame):
         except Exception as e:
             print(f"画像読み込みエラー: {e}")
             self.set_placeholder_image()
+    
+    def set_scaled_preview_pixmap(self, pixmap):
+        """アスペクト比を保ってプレビュー画像をスケールして表示"""
+        if pixmap.isNull():
+            return
+        
+        # 表示エリアのサイズを取得
+        display_size = self.image_label.size()
+        display_width = display_size.width()
+        display_height = display_size.height()
+        
+        # 元画像のサイズを取得
+        original_width = pixmap.width()
+        original_height = pixmap.height()
+        
+        # アスペクト比を計算
+        original_aspect = original_width / original_height
+        display_aspect = display_width / display_height
+        
+        # アスペクト比に基づいて適切なサイズを計算
+        if original_aspect > display_aspect:
+            # 元画像が横長の場合、幅に合わせる
+            scaled_width = display_width
+            scaled_height = int(display_width / original_aspect)
+        else:
+            # 元画像が縦長の場合、高さに合わせる
+            scaled_height = display_height
+            scaled_width = int(display_height * original_aspect)
+        
+        # 高品質なスケーリングを実行
+        scaled_pixmap = pixmap.scaled(
+            scaled_width, 
+            scaled_height, 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        
+        # 中央に配置するためのQPixmapを作成
+        final_pixmap = QPixmap(display_width, display_height)
+        final_pixmap.fill(Qt.transparent)
+        
+        # 中央に配置
+        painter = QPainter(final_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        
+        x_offset = (display_width - scaled_width) // 2
+        y_offset = (display_height - scaled_height) // 2
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        painter.end()
+        
+        self.image_label.setPixmap(final_pixmap)
     
     def set_placeholder_image(self):
         """プレースホルダー画像を設定"""
@@ -432,66 +479,10 @@ class ImageIndexWidget(QWidget):
         title_label.setFont(title_font)
         title_label.setStyleSheet("color: #1F2937;")
         
-        # 位置修正ボタン
-        self.position_edit_button = QPushButton("位置修正")
-        self.position_edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #10B981;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #059669;
-            }
-        """)
-        self.position_edit_button.clicked.connect(self.toggle_position_edit_mode)
-        
-        # 編集モードボタン
-        self.manage_button = QPushButton("編集")
-        self.manage_button.setStyleSheet("""
-            QPushButton {
-                background-color: #F59E0B;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #D97706;
-            }
-        """)
-        self.manage_button.clicked.connect(self.toggle_manage_mode)
-
-        # アップロードボタン
-        self.upload_button = QPushButton("画像アップロード")
-        self.upload_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3B82F6;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2563EB;
-            }
-        """)
-        self.upload_button.clicked.connect(self.image_create_requested.emit)
         
         header_layout.addWidget(back_button)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
-        header_layout.addWidget(self.position_edit_button)
-        header_layout.addWidget(self.manage_button)
-        header_layout.addWidget(self.upload_button)
         
         # スクロールエリア
         scroll_area = QScrollArea()
@@ -821,46 +812,9 @@ class ImageIndexWidget(QWidget):
         self.position_edit_mode = not self.position_edit_mode
         
         if self.position_edit_mode:
-            self.position_edit_button.setText("位置修正終了")
-            self.position_edit_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #EF4444;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #DC2626;
-                }
-            """)
-            # 他ボタンを非表示
-            self.manage_button.hide()
-            self.upload_button.hide()
             self.show_drop_zones()
         else:
-            self.position_edit_button.setText("位置修正")
-            self.position_edit_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #10B981;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #059669;
-                }
-            """)
             self.hide_drop_zones()
-            # 他ボタンを再表示（編集モードでなければ）
-            if not self.manage_mode:
-                self.manage_button.show()
-                self.upload_button.show()
     
     def show_drop_zones(self):
         """配置可能エリアを表示（既存の画像があるセルは除外、レスポンシブ対応）"""
@@ -1005,46 +959,6 @@ class ImageIndexWidget(QWidget):
     def toggle_manage_mode(self):
         """編集/削除モードの切り替え"""
         self.manage_mode = not self.manage_mode
-        if self.manage_mode:
-            self.manage_button.setText("編集終了")
-            self.manage_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #EF4444;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #DC2626;
-                }
-            """)
-            # 他ボタンを非表示
-            self.position_edit_button.hide()
-            self.upload_button.hide()
-        else:
-            self.manage_button.setText("編集")
-            self.manage_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #F59E0B;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #D97706;
-                }
-            """)
-
-            # 他ボタンを再表示（位置修正モードでなければ）
-            if not self.position_edit_mode:
-                self.position_edit_button.show()
-                self.upload_button.show()
 
         # すべてのカードの表示状態を更新
         for card in self.image_cards.values():

@@ -8,10 +8,11 @@ import sys
 import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, 
-    QVBoxLayout, QLabel, QFrame, QStackedWidget, QToolButton
+    QVBoxLayout, QLabel, QFrame, QStackedWidget, QToolButton,
+    QMenuBar, QMenu
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QAction
 import qtawesome as qta
 
 # データベース作成スクリプトをインポート
@@ -43,6 +44,11 @@ class Sidebar(QFrame):
     campus_create_requested = Signal()
     image_index_requested = Signal(int)  # 画像一覧画面への遷移要求（campus_id）
     video_index_requested = Signal(int)  # 動画一覧画面への遷移要求（campus_id）
+    image_create_requested = Signal()  # 画像アップロード要求
+    image_position_edit_requested = Signal()  # 画像位置修正要求
+    image_manage_mode_requested = Signal()  # 画像編集モード要求
+    video_create_requested = Signal()  # 動画アップロード要求
+    video_manage_mode_requested = Signal()  # 動画編集モード要求
     
     def __init__(self):
         super().__init__()
@@ -51,7 +57,7 @@ class Sidebar(QFrame):
     
     def setup_ui(self):
         # サイドバーのスタイル設定
-        self.setFixedWidth(250)
+        self.setFixedWidth(240)  # 幅を少し小さくして間隔を確保
         self.setStyleSheet("""
             QFrame {
                 background-color: #1F2937;
@@ -62,7 +68,7 @@ class Sidebar(QFrame):
         
         # レイアウト設定
         layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(20, 20, 40, 20)  # 右マージンをさらに大きくしてメインコンテンツとの間隔を確保
         layout.setSpacing(10)
         
         # メニュータイトル
@@ -77,7 +83,7 @@ class Sidebar(QFrame):
         
         # メニューボタンエリア
         self.menu_layout = QVBoxLayout()
-        self.menu_layout.setSpacing(8)
+        self.menu_layout.setSpacing(12)  # ボタン間のスペーシングを少し大きく
         
         layout.addLayout(self.menu_layout)
         layout.addStretch()  # 残りのスペースを埋める
@@ -199,6 +205,7 @@ class Sidebar(QFrame):
         back_btn.setIcon(qta.icon('mdi.arrow-left', color='#FFFFFF'))
         back_btn.setText("キャンパス一覧に戻る")
         back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
         back_btn.setStyleSheet("""
             QToolButton {
                 background-color: #6B7280;
@@ -208,6 +215,7 @@ class Sidebar(QFrame):
                 padding: 12px 16px;
                 text-align: left;
                 font-size: 14px;
+                margin-right: 20px;
             }
             QToolButton:hover {
                 background-color: #4B5563;
@@ -215,7 +223,79 @@ class Sidebar(QFrame):
         """)
         back_btn.clicked.connect(self.campus_index_requested.emit)
         
+        # 位置修正ボタン（参照を保存）
+        self.position_edit_btn = QToolButton()
+        self.position_edit_btn.setIcon(qta.icon('mdi.drag', color='#FFFFFF'))
+        self.position_edit_btn.setText("位置修正")
+        self.position_edit_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.position_edit_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
+        self.position_edit_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #10B981;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+                margin-right: 20px;
+            }
+            QToolButton:hover {
+                background-color: #059669;
+            }
+        """)
+        self.position_edit_btn.clicked.connect(self.image_position_edit_requested.emit)
+        
+        # 編集ボタン（参照を保存）
+        self.edit_btn = QToolButton()
+        self.edit_btn.setIcon(qta.icon('mdi.pencil', color='#FFFFFF'))
+        self.edit_btn.setText("編集")
+        self.edit_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.edit_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
+        self.edit_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #F59E0B;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+                margin-right: 20px;
+            }
+            QToolButton:hover {
+                background-color: #D97706;
+            }
+        """)
+        self.edit_btn.clicked.connect(self.image_manage_mode_requested.emit)
+        
+        # アップロードボタン
+        upload_btn = QToolButton()
+        upload_btn.setIcon(qta.icon('mdi.upload', color='#FFFFFF'))
+        upload_btn.setText("画像アップロード")
+        upload_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        upload_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
+        upload_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #3B82F6;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+                margin-right: 20px;
+            }
+            QToolButton:hover {
+                background-color: #2563EB;
+            }
+        """)
+        upload_btn.clicked.connect(self.image_create_requested.emit)
+        
         self.menu_layout.addWidget(back_btn)
+        self.menu_layout.addWidget(self.position_edit_btn)
+        self.menu_layout.addWidget(self.edit_btn)
+        self.menu_layout.addWidget(upload_btn)
         self.current_page = "image_index"
     
     def set_image_create_menu(self):
@@ -311,6 +391,7 @@ class Sidebar(QFrame):
         back_btn.setIcon(qta.icon('mdi.arrow-left', color='#FFFFFF'))
         back_btn.setText("キャンパス一覧に戻る")
         back_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        back_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
         back_btn.setStyleSheet("""
             QToolButton {
                 background-color: #6B7280;
@@ -320,6 +401,7 @@ class Sidebar(QFrame):
                 padding: 12px 16px;
                 text-align: left;
                 font-size: 14px;
+                margin-right: 20px;
             }
             QToolButton:hover {
                 background-color: #4B5563;
@@ -327,7 +409,55 @@ class Sidebar(QFrame):
         """)
         back_btn.clicked.connect(self.campus_index_requested.emit)
         
+        # 編集ボタン
+        edit_btn = QToolButton()
+        edit_btn.setIcon(qta.icon('mdi.pencil', color='#FFFFFF'))
+        edit_btn.setText("編集")
+        edit_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        edit_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
+        edit_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #F59E0B;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+                margin-right: 20px;
+            }
+            QToolButton:hover {
+                background-color: #D97706;
+            }
+        """)
+        edit_btn.clicked.connect(self.video_manage_mode_requested.emit)
+        
+        # アップロードボタン
+        upload_btn = QToolButton()
+        upload_btn.setIcon(qta.icon('mdi.upload', color='#FFFFFF'))
+        upload_btn.setText("動画を追加")
+        upload_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        upload_btn.setFixedSize(220, 50)  # サイズを固定（幅を拡張）
+        upload_btn.setStyleSheet("""
+            QToolButton {
+                background-color: #3B82F6;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 16px;
+                text-align: left;
+                font-size: 14px;
+                margin-right: 20px;
+            }
+            QToolButton:hover {
+                background-color: #2563EB;
+            }
+        """)
+        upload_btn.clicked.connect(self.video_create_requested.emit)
+        
         self.menu_layout.addWidget(back_btn)
+        self.menu_layout.addWidget(edit_btn)
+        self.menu_layout.addWidget(upload_btn)
         self.current_page = "video_index"
     
     def set_video_create_menu(self):
@@ -420,6 +550,82 @@ class Sidebar(QFrame):
             child = self.menu_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+    
+    def update_image_position_edit_button(self, is_active: bool):
+        """画像位置修正ボタンの状態を更新"""
+        if hasattr(self, 'position_edit_btn') and self.position_edit_btn:
+            if is_active:
+                self.position_edit_btn.setText("位置修正終了")
+                self.position_edit_btn.setStyleSheet("""
+                    QToolButton {
+                        background-color: #EF4444;
+                        color: #FFFFFF;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        text-align: left;
+                        font-size: 14px;
+                        margin-right: 20px;
+                    }
+                    QToolButton:hover {
+                        background-color: #DC2626;
+                    }
+                """)
+            else:
+                self.position_edit_btn.setText("位置修正")
+                self.position_edit_btn.setStyleSheet("""
+                    QToolButton {
+                        background-color: #10B981;
+                        color: #FFFFFF;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        text-align: left;
+                        font-size: 14px;
+                        margin-right: 20px;
+                    }
+                    QToolButton:hover {
+                        background-color: #059669;
+                    }
+                """)
+    
+    def update_image_manage_button(self, is_active: bool):
+        """画像編集ボタンの状態を更新"""
+        if hasattr(self, 'edit_btn') and self.edit_btn:
+            if is_active:
+                self.edit_btn.setText("編集終了")
+                self.edit_btn.setStyleSheet("""
+                    QToolButton {
+                        background-color: #EF4444;
+                        color: #FFFFFF;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        text-align: left;
+                        font-size: 14px;
+                        margin-right: 20px;
+                    }
+                    QToolButton:hover {
+                        background-color: #DC2626;
+                    }
+                """)
+            else:
+                self.edit_btn.setText("編集")
+                self.edit_btn.setStyleSheet("""
+                    QToolButton {
+                        background-color: #F59E0B;
+                        color: #FFFFFF;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 16px;
+                        text-align: left;
+                        font-size: 14px;
+                        margin-right: 20px;
+                    }
+                    QToolButton:hover {
+                        background-color: #D97706;
+                    }
+                """)
 
 
 class MainContent(QFrame):
@@ -443,7 +649,7 @@ class MainContent(QFrame):
         
         # レイアウト設定
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(20, 0, 0, 0)  # 左マージンを大きくしてサイドバーとの間隔を確保
         layout.addWidget(self.stacked_widget)
         
         self.setLayout(layout)
@@ -463,6 +669,7 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.sidebar_visible = True  # サイドバーの表示状態を管理
         self.setup_ui()
         self.setup_pages()
         self.connect_signals()
@@ -473,6 +680,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(800, 600)
         self.resize(1200, 800)
         
+        # メニューバーの設定
+        self.setup_menu_bar()
+        
         # 中央ウィジェット
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -480,7 +690,7 @@ class MainWindow(QMainWindow):
         # メインレイアウト（水平方向）
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setSpacing(20)  # サイドバーとメインコンテンツの間に大きな間隔を追加
         
         # サイドバーとメインコンテンツを追加
         self.sidebar = Sidebar()
@@ -497,6 +707,55 @@ class MainWindow(QMainWindow):
                 background-color: #F5F7FA;
             }
         """)
+    
+    def setup_menu_bar(self):
+        """メニューバーを設定"""
+        menubar = self.menuBar()
+        
+        # 表示メニューを作成
+        view_menu = menubar.addMenu('表示')
+        
+        # 左メニュー表示アクション
+        self.show_sidebar_action = QAction('左メニューを表示', self)
+        self.show_sidebar_action.setIcon(qta.icon('mdi.menu', color='#1F2937'))
+        self.show_sidebar_action.triggered.connect(self.show_sidebar)
+        
+        # 左メニュー非表示アクション
+        self.hide_sidebar_action = QAction('左メニューを非表示', self)
+        self.hide_sidebar_action.setIcon(qta.icon('mdi.menu-open', color='#1F2937'))
+        self.hide_sidebar_action.triggered.connect(self.hide_sidebar)
+        
+        # メニューにアクションを追加
+        view_menu.addAction(self.show_sidebar_action)
+        view_menu.addAction(self.hide_sidebar_action)
+        
+        # 初期状態の設定（左メニューが表示されているので、表示ボタンを無効化）
+        self.update_sidebar_menu_state()
+    
+    def show_sidebar(self):
+        """左メニューを表示"""
+        if not self.sidebar_visible:
+            self.sidebar.show()
+            self.sidebar_visible = True
+            self.update_sidebar_menu_state()
+    
+    def hide_sidebar(self):
+        """左メニューを非表示"""
+        if self.sidebar_visible:
+            self.sidebar.hide()
+            self.sidebar_visible = False
+            self.update_sidebar_menu_state()
+    
+    def update_sidebar_menu_state(self):
+        """左メニューの表示状態に応じてメニューボタンの有効/無効を切り替え"""
+        if self.sidebar_visible:
+            # 左メニューが表示されている場合
+            self.show_sidebar_action.setEnabled(False)  # 表示ボタンを無効化
+            self.hide_sidebar_action.setEnabled(True)   # 非表示ボタンを有効化
+        else:
+            # 左メニューが非表示の場合
+            self.show_sidebar_action.setEnabled(True)   # 表示ボタンを有効化
+            self.hide_sidebar_action.setEnabled(False)  # 非表示ボタンを無効化
     
     def setup_pages(self):
         """ページをセットアップ"""
@@ -543,6 +802,11 @@ class MainWindow(QMainWindow):
         self.sidebar.campus_create_requested.connect(self.show_campus_create)
         self.sidebar.image_index_requested.connect(self.show_image_index)
         self.sidebar.video_index_requested.connect(self.show_video_index)
+        self.sidebar.image_create_requested.connect(self.show_image_create)
+        self.sidebar.image_position_edit_requested.connect(self.toggle_image_position_edit_mode)
+        self.sidebar.image_manage_mode_requested.connect(self.toggle_image_manage_mode)
+        self.sidebar.video_create_requested.connect(self.show_video_create)
+        self.sidebar.video_manage_mode_requested.connect(self.toggle_video_manage_mode)
         
         # キャンパス一覧のシグナル
         self.campus_index_widget.create_campus_requested.connect(self.show_campus_create)
@@ -623,6 +887,10 @@ class MainWindow(QMainWindow):
         # ページを表示
         self.main_content.set_current_page(self.image_index_index)
         self.sidebar.set_image_index_menu()
+        
+        # 現在の状態に応じて左メニューのボタン状態を更新
+        self.sidebar.update_image_position_edit_button(self.image_index_widget.position_edit_mode)
+        self.sidebar.update_image_manage_button(self.image_index_widget.manage_mode)
     
     def show_image_create(self):
         """画像アップロード画面を表示"""
@@ -837,6 +1105,25 @@ class MainWindow(QMainWindow):
     def on_video_deleted(self):
         """動画削除完了時の処理"""
         self.show_video_index_from_edit()
+    
+    def toggle_image_position_edit_mode(self):
+        """画像位置修正モードの切り替え"""
+        if self.image_index_widget:
+            self.image_index_widget.toggle_position_edit_mode()
+            # 左メニューのボタン状態を更新
+            self.sidebar.update_image_position_edit_button(self.image_index_widget.position_edit_mode)
+    
+    def toggle_image_manage_mode(self):
+        """画像編集モードの切り替え"""
+        if self.image_index_widget:
+            self.image_index_widget.toggle_manage_mode()
+            # 左メニューのボタン状態を更新
+            self.sidebar.update_image_manage_button(self.image_index_widget.manage_mode)
+    
+    def toggle_video_manage_mode(self):
+        """動画編集モードの切り替え"""
+        if self.video_index_widget:
+            self.video_index_widget.toggle_manage_mode()
 
 
 def main():
