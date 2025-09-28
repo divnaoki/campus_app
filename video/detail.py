@@ -102,7 +102,8 @@ class VideoPlayerWidget(QWidget):
         
         # 動画表示エリア（サムネイルを表示）
         self.video_display = QLabel()
-        self.video_display.setMinimumSize(800, 450)
+        self.video_display.setMinimumSize(400, 300)  # 最小サイズを小さく
+        self.video_display.setMaximumSize(1200, 800)  # 最大サイズを大きく
         self.video_display.setStyleSheet("""
             QLabel {
                 background-color: #000000;
@@ -113,6 +114,9 @@ class VideoPlayerWidget(QWidget):
         self.video_display.setAlignment(Qt.AlignCenter)
         self.video_display.setScaledContents(True)
         
+        # 動画のアスペクト比を保存する変数
+        self.video_aspect_ratio = None
+        
         # サムネイルを読み込み
         self.load_thumbnail()
         
@@ -122,6 +126,7 @@ class VideoPlayerWidget(QWidget):
         
         # シークバー
         self.progress_slider = QSlider(Qt.Horizontal)
+        # シークバーの幅は動的に調整される
         self.progress_slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 border: 1px solid #E5E7EB;
@@ -164,13 +169,13 @@ class VideoPlayerWidget(QWidget):
         """)
         self.play_button.clicked.connect(self.toggle_play)
         
-        # コントロールレイアウトに追加
-        controls_layout.addWidget(self.progress_slider)
+        # コントロールレイアウトに追加（中央配置）
+        controls_layout.addWidget(self.progress_slider, 0, Qt.AlignCenter)
         controls_layout.addWidget(self.play_button, 0, Qt.AlignCenter)
         
-        # メインレイアウトに追加
+        # メインレイアウトに追加（中央配置）
         layout.addLayout(header_layout)
-        layout.addWidget(self.video_display)
+        layout.addWidget(self.video_display, 0, Qt.AlignCenter)
         layout.addLayout(controls_layout)
         
         self.setLayout(layout)
@@ -233,6 +238,14 @@ class VideoPlayerWidget(QWidget):
                         self.duration = duration
                         self.fps = info['fps']
                         
+                        # 動画のアスペクト比を計算
+                        width = info.get('width', 1920)
+                        height = info.get('height', 1080)
+                        self.video_aspect_ratio = width / height
+                        
+                        # 動画表示エリアのサイズを調整
+                        self.adjust_video_display_size()
+                        
                         # シークバーの最大値を設定（100%を100として設定）
                         self.progress_slider.setMaximum(100)
                         
@@ -293,7 +306,9 @@ class VideoPlayerWidget(QWidget):
         # 動画フレームを更新するタイマーを開始
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
-        self.timer.start(int(1000 / self.fps))  # FPSに基づいて更新間隔を設定
+        # フレームレートを制限してスムーズな再生を実現（最大30FPS）
+        timer_interval = max(33, int(1000 / min(self.fps, 30)))
+        self.timer.start(timer_interval)
     
     def pause_video(self):
         """動画を一時停止"""
@@ -325,16 +340,6 @@ class VideoPlayerWidget(QWidget):
         if not self.cap or not self.cap.isOpened():
             return
         
-        # 音声の位置に基づいて動画フレームを同期
-        if not self.is_seeking and self.duration > 0:
-            current_audio_pos = self.audio_player.position()  # ミリ秒
-            if current_audio_pos > 0:
-                # 音声の位置に基づいて動画フレームを設定
-                progress = current_audio_pos / (self.duration * 1000)
-                total_frames = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
-                target_frame = int(progress * total_frames)
-                self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        
         ret, frame = self.cap.read()
         if not ret:
             # 動画の終了
@@ -344,15 +349,17 @@ class VideoPlayerWidget(QWidget):
         # OpenCVのBGRからRGBに変換
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # フレームをリサイズ
+        # フレームをリサイズ（高品質なリサイズ）
         height, width, channel = frame_rgb.shape
         bytes_per_line = 3 * width
         q_image = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
-        # QPixmapに変換して表示
+        # QPixmapに変換して表示（高品質スケーリング）
         pixmap = QPixmap.fromImage(q_image)
+        # 動画表示エリアのサイズに合わせてスケーリング
+        display_size = self.video_display.size()
         scaled_pixmap = pixmap.scaled(
-            self.video_display.size(), 
+            display_size, 
             Qt.KeepAspectRatio, 
             Qt.SmoothTransformation
         )
@@ -389,7 +396,9 @@ class VideoPlayerWidget(QWidget):
         # 再生中の場合のみ再開
         if self.is_playing:
             if hasattr(self, 'timer'):
-                self.timer.start(int(1000 / self.fps))
+                # フレームレートを制限してスムーズな再生を実現（最大30FPS）
+                timer_interval = max(33, int(1000 / min(self.fps, 30)))
+                self.timer.start(timer_interval)
             # 音声も再開
             self.audio_player.play()
     
@@ -426,6 +435,33 @@ class VideoPlayerWidget(QWidget):
         # 再生状態をリセット
         self.is_playing = False
         self.is_seeking = False
+    
+    def adjust_video_display_size(self):
+        """動画のアスペクト比に応じて表示エリアのサイズを調整"""
+        if not self.video_aspect_ratio:
+            return
+        
+        # 基準サイズ（横動画用）
+        base_width = 800
+        base_height = 450
+        
+        # 縦動画の場合（アスペクト比が1より小さい）
+        if self.video_aspect_ratio < 1.0:
+            # 縦動画は高さを基準にして幅を計算
+            new_height = min(600, base_height)  # 最大高さを600に制限
+            new_width = int(new_height * self.video_aspect_ratio)
+            new_width = max(300, new_width)  # 最小幅を300に制限
+        else:
+            # 横動画は幅を基準にして高さを計算
+            new_width = min(1000, base_width)  # 最大幅を1000に制限
+            new_height = int(new_width / self.video_aspect_ratio)
+            new_height = max(300, new_height)  # 最小高さを300に制限
+        
+        # サイズを設定
+        self.video_display.setFixedSize(new_width, new_height)
+        
+        # シークバーの幅も調整
+        self.progress_slider.setFixedWidth(new_width)
 
 
 class VideoDetailWidget(QWidget):

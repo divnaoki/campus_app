@@ -55,13 +55,13 @@ class VideoCard(QFrame):
         
         # レイアウト設定
         layout = QVBoxLayout()
-        layout.setContentsMargins(5, 5, 5, 10)
-        layout.setSpacing(5)
-        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        layout.setContentsMargins(5, 5, 5, 10)  # 左右マージンを小さく
+        layout.setSpacing(5)  # スペーシングを小さく
+        layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)  # 上詰めかつ水平中央揃え
         
         # サムネイルプレビューエリア
         self.thumbnail_label = QLabel()
-        self.thumbnail_label.setFixedSize(240, 200)
+        self.thumbnail_label.setFixedSize(240, 200)  # 幅を少し大きく
         self.thumbnail_label.setStyleSheet("""
             QLabel {
                 background-color: #F9FAFB;
@@ -70,7 +70,7 @@ class VideoCard(QFrame):
             }
         """)
         self.thumbnail_label.setAlignment(Qt.AlignCenter)
-        self.thumbnail_label.setScaledContents(True)
+        self.thumbnail_label.setScaledContents(False)  # 手動でスケーリングするため無効化
         
         # サムネイルを読み込み
         self.load_thumbnail_preview()
@@ -143,13 +143,8 @@ class VideoCard(QFrame):
             if self.video.thumbnail_path and os.path.exists(self.video.thumbnail_path):
                 pixmap = QPixmap(self.video.thumbnail_path)
                 if not pixmap.isNull():
-                    # アスペクト比を保ってリサイズ
-                    scaled_pixmap = pixmap.scaled(
-                        self.thumbnail_label.size(), 
-                        Qt.KeepAspectRatio, 
-                        Qt.SmoothTransformation
-                    )
-                    self.thumbnail_label.setPixmap(scaled_pixmap)
+                    # アスペクト比を保ってリサイズ（より高品質なスケーリング）
+                    self.set_scaled_preview_pixmap(pixmap)
                 else:
                     self.set_default_thumbnail()
             else:
@@ -158,11 +153,70 @@ class VideoCard(QFrame):
             print(f"サムネイル読み込みエラー: {e}")
             self.set_default_thumbnail()
     
+    def set_scaled_preview_pixmap(self, pixmap):
+        """アスペクト比を保ってプレビュー画像をスケールして表示"""
+        if pixmap.isNull():
+            return
+        
+        # 表示エリアのサイズを取得
+        display_size = self.thumbnail_label.size()
+        display_width = display_size.width()
+        display_height = display_size.height()
+        
+        # 元画像のサイズを取得
+        original_width = pixmap.width()
+        original_height = pixmap.height()
+        
+        # アスペクト比を計算
+        original_aspect = original_width / original_height
+        display_aspect = display_width / display_height
+        
+        # アスペクト比に基づいて適切なサイズを計算
+        if original_aspect > display_aspect:
+            # 元画像が横長の場合、幅に合わせる
+            scaled_width = display_width
+            scaled_height = int(display_width / original_aspect)
+        else:
+            # 元画像が縦長の場合、高さに合わせる
+            scaled_height = display_height
+            scaled_width = int(display_height * original_aspect)
+        
+        # 高品質なスケーリングを実行
+        scaled_pixmap = pixmap.scaled(
+            scaled_width, 
+            scaled_height, 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        
+        # 中央に配置するためのQPixmapを作成
+        final_pixmap = QPixmap(display_width, display_height)
+        final_pixmap.fill(Qt.transparent)
+        
+        # 中央に配置
+        painter = QPainter(final_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        
+        x_offset = (display_width - scaled_width) // 2
+        y_offset = (display_height - scaled_height) // 2
+        painter.drawPixmap(x_offset, y_offset, scaled_pixmap)
+        painter.end()
+        
+        self.thumbnail_label.setPixmap(final_pixmap)
+    
     def set_default_thumbnail(self):
         """デフォルトのサムネイルを設定"""
-        # 動画アイコンを表示
-        icon = qta.icon('fa5s.play-circle', color='#9CA3AF')
-        pixmap = icon.pixmap(64, 64)
+        # プレースホルダー画像を作成
+        pixmap = QPixmap(240, 200)
+        pixmap.fill(Qt.lightGray)
+        
+        painter = QPainter(pixmap)
+        painter.setPen(QPen(Qt.gray, 2))
+        painter.drawRect(15, 15, 210, 170)
+        painter.drawText(120, 100, "No Video")
+        painter.end()
+        
         self.thumbnail_label.setPixmap(pixmap)
     
     def mousePressEvent(self, event):
@@ -256,53 +310,87 @@ class VideoIndexWidget(QWidget):
         self.campus = Campus.get_by_id(campus_id)
         self.video_cards = []
         self.manage_mode = False
+        self.current_columns = 4  # デフォルト列数
         self.setup_ui()
         self.load_videos()
     
     def setup_ui(self):
         """UIをセットアップ"""
-        layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
+        # メインレイアウト
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
         
         # ヘッダー部分
         header_layout = QHBoxLayout()
         
+        # 戻るボタン
+        back_button = QPushButton("← キャンパス一覧に戻る")
+        back_button.setStyleSheet("""
+            QPushButton {
+                background-color: #F3F4F6;
+                color: #6B7280;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #E5E7EB;
+            }
+        """)
+        back_button.clicked.connect(self.back_to_campus_requested.emit)
+        
         # タイトル
         title_text = f"動画一覧 - {self.campus.name if self.campus else 'Unknown'}"
         title_label = QLabel(title_text)
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: #1F2937;
-            }
-        """)
+        title_font = QFont()
+        title_font.setPointSize(20)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setStyleSheet("color: #1F2937;")
         
-        
+        header_layout.addWidget(back_button)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         
         # スクロールエリア
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: #F9FAFB;
+            }
+        """)
         
-        # コンテンツウィジェット
-        self.content_widget = QWidget()
-        self.content_layout = QGridLayout()
-        self.content_layout.setSpacing(10)
-        self.content_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self.content_widget.setLayout(self.content_layout)
+        # 動画グリッドコンテナ
+        self.grid_container = QWidget()
+        self.grid_container.setAcceptDrops(True)
+        self.grid_container.setSizePolicy(
+            QSizePolicy.Expanding, 
+            QSizePolicy.Preferred
+        )
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(10)
+        self.grid_layout.setContentsMargins(20, 10, 20, 10)  # 左右マージンを大きく
+        self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)  # 上詰めかつ水平中央揃え
+        self.grid_container.setLayout(self.grid_layout)
         
-        self.scroll_area.setWidget(self.content_widget)
+        # ドロップイベントをグリッドコンテナに接続
+        self.grid_container.dragEnterEvent = self.dragEnterEvent
+        self.grid_container.dragMoveEvent = self.dragMoveEvent
+        self.grid_container.dropEvent = self.dropEvent
+        
+        scroll_area.setWidget(self.grid_container)
         
         # レイアウトに追加
-        layout.addLayout(header_layout)
-        layout.addWidget(self.scroll_area)
+        main_layout.addLayout(header_layout)
+        main_layout.addWidget(scroll_area)
         
-        self.setLayout(layout)
+        self.setLayout(main_layout)
     
     def load_videos(self):
         """動画一覧を読み込み"""
@@ -326,18 +414,26 @@ class VideoIndexWidget(QWidget):
         self.video_cards.clear()
         
         # レイアウトをクリア
-        while self.content_layout.count():
-            child = self.content_layout.takeAt(0)
+        while self.grid_layout.count():
+            child = self.grid_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
     
     def create_video_cards(self, videos):
         """動画カードを作成"""
-        cols = 4  # 1行に4つのカード
+        # レスポンシブ対応で列数を計算
+        columns = self.calculate_responsive_columns(self.width())
+        self.current_columns = columns  # 現在の列数を更新
+        
+        # グリッドコンテナの最小幅を設定（中央揃えのため）
+        card_width = 250
+        spacing = 10
+        min_width = columns * (card_width + spacing) - spacing + 40  # 40はマージン
+        self.grid_container.setMinimumWidth(min_width)
         
         for i, video in enumerate(videos):
-            row = i // cols
-            col = i % cols
+            row = i // columns
+            col = i % columns
             
             card = VideoCard(video, row, col)
             card.video_clicked.connect(self.on_video_clicked)
@@ -348,7 +444,7 @@ class VideoIndexWidget(QWidget):
             card.edit_clicked.connect(self.video_edit_requested.emit)
             card.delete_clicked.connect(lambda vid=video.id: self.confirm_and_delete_video(vid))
             
-            self.content_layout.addWidget(card, row, col)
+            self.grid_layout.addWidget(card, row, col)
             self.video_cards.append(card)
             card.update_manage_buttons_visibility()
     
@@ -365,7 +461,7 @@ class VideoIndexWidget(QWidget):
         empty_label.setAlignment(Qt.AlignCenter)
         empty_label.setMinimumHeight(200)
         
-        self.content_layout.addWidget(empty_label, 0, 0, 1, 4)
+        self.grid_layout.addWidget(empty_label, 0, 0, 1, -1)
     
     def on_video_clicked(self, video_id: int):
         """動画クリック時の処理"""
@@ -384,8 +480,9 @@ class VideoIndexWidget(QWidget):
     def update_video_order(self, video_id: int, new_row: int, new_col: int):
         """動画の並び順を更新"""
         try:
-            # 新しいsort_orderを計算
-            new_sort_order = new_row * 4 + new_col + 1
+            # レスポンシブ対応で列数を取得
+            columns = self.current_columns if hasattr(self, 'current_columns') else 4
+            new_sort_order = new_row * columns + new_col + 1
             
             # データベースを更新
             video = Video.get_by_id(video_id)
@@ -429,3 +526,118 @@ class VideoIndexWidget(QWidget):
                 self.load_videos()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"削除に失敗しました:\n{str(e)}")
+    
+    def calculate_responsive_columns(self, window_width: int) -> int:
+        """ウィンドウ幅に基づいて列数を計算（2-5列の範囲）"""
+        card_width = 250
+        spacing = 10
+        margin = 80  # 左右マージンを大きくして余白を確保
+        
+        available_width = window_width - margin
+        calculated_columns = available_width // (card_width + spacing)
+        
+        # 2-5列の範囲に制限
+        return max(2, min(5, calculated_columns))
+    
+    def resizeEvent(self, event):
+        """ウィンドウリサイズ時の処理"""
+        super().resizeEvent(event)
+        # レスポンシブ対応でグリッドを再描画
+        if hasattr(self, 'video_cards') and self.video_cards:
+            self.refresh_layout_only()
+    
+    def refresh_layout_only(self):
+        """レイアウトのみを更新（レスポンシブ対応）"""
+        # 現在の列数を取得
+        old_columns = self.current_columns
+        new_columns = self.calculate_responsive_columns(self.width())
+        
+        # 列数が変わらない場合は何もしない
+        if old_columns == new_columns:
+            return
+        
+        # 現在の列数を更新
+        self.current_columns = new_columns
+        
+        # グリッドレイアウトをクリア
+        while self.grid_layout.count():
+            child = self.grid_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        # 動画カードをクリア
+        self.video_cards.clear()
+        
+        # 動画一覧を再読み込み
+        self.load_videos()
+    
+    def dragEnterEvent(self, event):
+        """ドラッグエンターイベント"""
+        if event.mimeData().hasText() and event.mimeData().text().startswith("video:"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dragMoveEvent(self, event):
+        """ドラッグ移動イベント"""
+        if event.mimeData().hasText() and event.mimeData().text().startswith("video:"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        """ドロップイベント"""
+        if event.mimeData().hasText():
+            text = event.mimeData().text()
+            if text.startswith("video:"):
+                parts = text.split(":")
+                if len(parts) >= 4:
+                    video_id = int(parts[1])
+                    from_row = int(parts[2])
+                    from_col = int(parts[3])
+                    
+                    # ドロップ位置からグリッド位置を計算
+                    drop_position = event.position().toPoint()
+                    target_row, target_col = self.get_grid_position_from_point(drop_position)
+                    
+                    if target_row != -1 and target_col != -1:
+                        self.update_video_order(video_id, target_row, target_col)
+                    
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+    
+    def get_grid_position_from_point(self, point: QPoint) -> tuple:
+        """ポイントからグリッド位置を計算"""
+        # グリッドのセルサイズを計算（カードサイズ + スペーシング）
+        card_width = 250
+        card_height = 300
+        spacing = 10
+        columns = self.current_columns
+        
+        # グリッドコンテナ内での相対位置を計算
+        relative_point = point - self.grid_container.pos()
+        
+        # グリッドレイアウトのマージンを取得
+        margins = self.grid_layout.getContentsMargins()
+        margin_x = margins[0]  # 左マージン
+        margin_y = margins[1]  # 上マージン
+        
+        # マージンを引いた位置で計算
+        adjusted_x = relative_point.x() - margin_x
+        adjusted_y = relative_point.y() - margin_y
+        
+        # 負の値の場合は0に調整
+        if adjusted_x < 0:
+            adjusted_x = 0
+        if adjusted_y < 0:
+            adjusted_y = 0
+        
+        col = adjusted_x // (card_width + spacing)
+        row = adjusted_y // (card_height + spacing)
+        
+        # 有効な範囲内かチェック
+        if 0 <= row < 10 and 0 <= col < columns:  # 最大10行
+            return row, col
+        else:
+            return -1, -1
